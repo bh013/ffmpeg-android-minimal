@@ -34,7 +34,12 @@ jobs:
           curl \
           wget \
           tar \
-          xz-utils
+          xz-utils \
+          python3-pip \
+          ninja-build
+        
+        # Install meson
+        pip3 install meson
     
     - name: Cache Android NDK
       id: cache-ndk
@@ -54,6 +59,7 @@ jobs:
     - name: Setup NDK environment
       run: |
         echo "ANDROID_NDK_HOME=$HOME/android-ndk-r21e" >> $GITHUB_ENV
+        echo "PATH=$HOME/.local/bin:$PATH" >> $GITHUB_ENV
     
     - name: Build external dependencies (dav1d)
       run: |
@@ -63,18 +69,29 @@ jobs:
         
         export ANDROID_NDK=$ANDROID_NDK_HOME
         export TOOLCHAIN=$ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64
-        export TARGET=armv7a-linux-androideabi
         export API=24
-        export CC=$TOOLCHAIN/bin/$TARGET$API-clang
-        export CXX=$TOOLCHAIN/bin/$TARGET$API-clang++
-        export AR=$TOOLCHAIN/bin/llvm-ar
-        export RANLIB=$TOOLCHAIN/bin/llvm-ranlib
-        export STRIP=$TOOLCHAIN/bin/llvm-strip
+        
+        # Create custom meson cross-file for Android ARM
+        cat > android-arm.meson << MESON_CROSS
+        [binaries]
+        c = '$TOOLCHAIN/bin/armv7a-linux-androideabi$API-clang'
+        cpp = '$TOOLCHAIN/bin/armv7a-linux-androideabi$API-clang++'
+        ar = '$TOOLCHAIN/bin/llvm-ar'
+        strip = '$TOOLCHAIN/bin/llvm-strip'
+        pkgconfig = 'pkg-config'
+        
+        [host_machine]
+        system = 'android'
+        cpu_family = 'arm'
+        cpu = 'armv7a'
+        endian = 'little'
+        MESON_CROSS
         
         meson setup build \
-          --cross-file=package/crossfiles/arm-android.meson \
+          --cross-file=android-arm.meson \
           --default-library=static \
           --buildtype=release \
+          --prefix=/usr/local \
           -Denable_tools=false \
           -Denable_tests=false
         
