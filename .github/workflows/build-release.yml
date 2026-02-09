@@ -1,0 +1,255 @@
+name: Build FFmpeg Android
+
+on:
+  push:
+    branches: [ main, master ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Setup build environment
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          git \
+          yasm \
+          nasm \
+          cmake \
+          pkg-config \
+          autoconf \
+          automake \
+          libtool \
+          curl \
+          wget \
+          tar \
+          xz-utils
+    
+    - name: Cache Android NDK
+      id: cache-ndk
+      uses: actions/cache@v4
+      with:
+        path: ~/android-ndk-r21e
+        key: android-ndk-r21e-linux
+    
+    - name: Download Android NDK r21e
+      if: steps.cache-ndk.outputs.cache-hit != 'true'
+      run: |
+        cd ~
+        wget -q https://dl.google.com/android/repository/android-ndk-r21e-linux-x86_64.zip
+        unzip -q android-ndk-r21e-linux-x86_64.zip
+        rm android-ndk-r21e-linux-x86_64.zip
+    
+    - name: Setup NDK environment
+      run: |
+        echo "ANDROID_NDK_HOME=$HOME/android-ndk-r21e" >> $GITHUB_ENV
+    
+    - name: Build external dependencies (dav1d)
+      run: |
+        # Build dav1d (AV1 decoder)
+        git clone --depth 1 --branch 1.4.0 https://code.videolan.org/videolan/dav1d.git
+        cd dav1d
+        
+        export ANDROID_NDK=$ANDROID_NDK_HOME
+        export TOOLCHAIN=$ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64
+        export TARGET=armv7a-linux-androideabi
+        export API=24
+        export CC=$TOOLCHAIN/bin/$TARGET$API-clang
+        export CXX=$TOOLCHAIN/bin/$TARGET$API-clang++
+        export AR=$TOOLCHAIN/bin/llvm-ar
+        export RANLIB=$TOOLCHAIN/bin/llvm-ranlib
+        export STRIP=$TOOLCHAIN/bin/llvm-strip
+        
+        meson setup build \
+          --cross-file=package/crossfiles/arm-android.meson \
+          --default-library=static \
+          --buildtype=release \
+          -Denable_tools=false \
+          -Denable_tests=false
+        
+        ninja -C build
+        sudo ninja -C build install
+        cd ..
+    
+    - name: Build external dependencies (x264)
+      run: |
+        # Build x264 (H.264 encoder)
+        git clone --depth 1 https://code.videolan.org/videolan/x264.git
+        cd x264
+        
+        export TOOLCHAIN=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64
+        export CC=$TOOLCHAIN/bin/armv7a-linux-androideabi24-clang
+        export SYSROOT=$TOOLCHAIN/sysroot
+        
+        ./configure \
+          --prefix=/usr/local \
+          --host=arm-linux \
+          --cross-prefix=$TOOLCHAIN/bin/llvm- \
+          --sysroot=$SYSROOT \
+          --enable-static \
+          --enable-pic \
+          --disable-cli
+        
+        make -j$(nproc)
+        sudo make install
+        cd ..
+    
+    - name: Build external dependencies (x265)
+      run: |
+        # Build x265 (HEVC encoder)
+        git clone --depth 1 --branch 3.5 https://bitbucket.org/multicoreware/x265_git.git x265
+        cd x265/build/linux
+        
+        export TOOLCHAIN=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64
+        export CC=$TOOLCHAIN/bin/armv7a-linux-androideabi24-clang
+        export CXX=$TOOLCHAIN/bin/armv7a-linux-androideabi24-clang++
+        
+        cmake ../../source \
+          -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
+          -DANDROID_ABI=armeabi-v7a \
+          -DANDROID_PLATFORM=android-24 \
+          -DENABLE_SHARED=OFF \
+          -DENABLE_CLI=OFF
+        
+        make -j$(nproc)
+        sudo make install
+        cd ../../..
+    
+    - name: Build external dependencies (libvpx)
+      run: |
+        # Build libvpx (VP9)
+        git clone --depth 1 --branch v1.13.1 https://chromium.googlesource.com/webm/libvpx.git
+        cd libvpx
+        
+        export TOOLCHAIN=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64
+        export CROSS=$TOOLCHAIN/bin/armv7a-linux-androideabi24-
+        
+        ./configure \
+          --target=armv7-android-gcc \
+          --prefix=/usr/local \
+          --disable-shared \
+          --enable-static \
+          --disable-examples \
+          --disable-tools \
+          --disable-docs \
+          --disable-unit-tests
+        
+        make -j$(nproc)
+        sudo make install
+        cd ..
+    
+    - name: Build external dependencies (SVT-AV1)
+      run: |
+        # Build SVT-AV1 (AV1 encoder)
+        git clone --depth 1 --branch v1.8.0 https://gitlab.com/AOMediaCodec/SVT-AV1.git
+        cd SVT-AV1/Build
+        
+        export TOOLCHAIN=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64
+        
+        cmake .. \
+          -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
+          -DANDROID_ABI=armeabi-v7a \
+          -DANDROID_PLATFORM=android-24 \
+          -DBUILD_SHARED_LIBS=OFF \
+          -DBUILD_APPS=OFF \
+          -DBUILD_DEC=OFF
+        
+        make -j$(nproc)
+        sudo make install
+        cd ../..
+    
+    - name: Build external dependencies (libaom)
+      run: |
+        # Build libaom (AV1 codec)
+        git clone --depth 1 --branch v3.8.0 https://aomedia.googlesource.com/aom
+        cd aom
+        mkdir build && cd build
+        
+        cmake .. \
+          -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
+          -DANDROID_ABI=armeabi-v7a \
+          -DANDROID_PLATFORM=android-24 \
+          -DBUILD_SHARED_LIBS=OFF \
+          -DENABLE_TESTS=OFF \
+          -DENABLE_TOOLS=OFF \
+          -DENABLE_EXAMPLES=OFF \
+          -DENABLE_DOCS=OFF
+        
+        make -j$(nproc)
+        sudo make install
+        cd ../..
+    
+    - name: Build FFmpeg
+      run: |
+        chmod +x build_ffmpeg_android.sh
+        ./build_ffmpeg_android.sh
+    
+    - name: Prepare release artifacts
+      run: |
+        mkdir -p release
+        cp -r output/* release/
+        cd release
+        tar -czf ../ffmpeg-android-armeabi-v7a-minimal.tar.gz .
+        cd ..
+        
+        # Create checksums
+        sha256sum ffmpeg-android-armeabi-v7a-minimal.tar.gz > checksums.txt
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ffmpeg-android-armeabi-v7a
+        path: |
+          ffmpeg-android-armeabi-v7a-minimal.tar.gz
+          checksums.txt
+    
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          ffmpeg-android-armeabi-v7a-minimal.tar.gz
+          checksums.txt
+        body: |
+          ## FFmpeg Android Build (armeabi-v7a)
+          
+          **Minimal static build with selected codecs:**
+          
+          ### Decoders
+          - AV1: `av1`, `libdav1d`, `libaom_av1`
+          - VP9: `vp9`, `libvpx_vp9`
+          - HEVC: `hevc`, `libx265`
+          - H.264: `h264`
+          
+          ### Encoders
+          - AV1: `libsvtav1`
+          - VP9: `libvpx_vp9`
+          - HEVC: `libx265`
+          - H.264: `libx264`
+          
+          ### Build Configuration
+          - **NDK:** r21e
+          - **API Level:** 24
+          - **Architecture:** armeabi-v7a
+          - **Linking:** Static
+          - **License:** Nonfree (GPL + proprietary codecs)
+          
+          ### Contents
+          - `lib/`: Static libraries (.a files)
+          - `include/`: Header files
+          - `bin/`: ffmpeg binary (if enabled)
+          
+          ### Checksums
+          See `checksums.txt` for SHA-256 verification.
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

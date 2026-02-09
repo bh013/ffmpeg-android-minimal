@@ -1,0 +1,31 @@
+# Build outputs
+build/
+output/
+ffmpeg/
+*.tar.gz
+*.zip
+
+# External dependencies
+dav1d/
+x264/
+x265/
+libvpx/
+SVT-AV1/
+aom/
+
+# NDK
+android-ndk-*/
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
