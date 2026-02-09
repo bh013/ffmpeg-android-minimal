@@ -1,0 +1,112 @@
+
+                   FFmpeg Android Minimal Build - QUICK START               ║
+
+
+   /home/engine/project/ffmpeg-android-minimal
+
+
+
+
+OPTION 1: GitHub CLI (Fastest)
+
+
+cd /home/engine/project/ffmpeg-android-minimal
+
+gh repo create ffmpeg-android-minimal \
+  --public \
+  --source=. \
+  --description="Minimal FFmpeg build for Android (armeabi-v7a) with AV1, VP9, HEVC, H.264" \
+  --push
+
+# Wait for the build to complete, then:
+git tag -a v1.0.0 -m "Release v1.0.0 - Initial FFmpeg Android build"
+git push origin v1.0.0
+
+
+
+OPTION 2: GitHub Web Interface
+
+
+1. Go to: https://github.com/new
+
+2. Fill in:
+   Repository name: ffmpeg-android-minimal
+   Description: Minimal FFmpeg build for Android (armeabi-v7a)
+   Public repository
+   ❌ DO NOT initialize with README
+
+3. Run these commands:
+
+cd /home/engine/project/ffmpeg-android-minimal
+
+git remote add origin https://github.com/YOUR_USERNAME/ffmpeg-android-minimal.git
+git push -u origin main
+
+# After first build completes:
+git tag -a v1.0.0 -m "Release v1.0.0"
+git push origin v1.0.0
+
+
+
+
+
+1. GitHub Actions will start building automatically
+2. Build time: ~60-90 minutes (first build)
+3. Check progress: https://github.com/YOUR_USERNAME/ffmpeg-android-minimal/actions
+4. After tagging v1.0.0, a release will be published with:
+   ✅ ffmpeg-android-armeabi-v7a-minimal.tar.gz
+   ✅ checksums.txt
+   ✅ Detailed release notes
+
+
+
+
+
+README.md            - Main documentation & usage guide
+DEPLOYMENT_GUIDE.md  - Detailed deployment & troubleshooting
+PROJECT_SUMMARY.md   - Complete technical overview
+CONTRIBUTING.md      - How to contribute
+LICENSE              - MIT License for scripts
+
+
+
+
+
+Static FFmpeg libraries for Android armeabi-v7a:
+  ✅ libavcodec.a    - Video/audio codecs
+  ✅ libavformat.a   - Format demuxing/muxing
+  ✅ libavutil.a     - Utility functions
+  ✅ libswresample.a - Audio resampling
+  ✅ libswscale.a    - Video scaling
+
+Supported codecs:
+  🎬 AV1 decoder/encoder (libdav1d, SVT-AV1)
+  🎬 VP9 decoder/encoder (libvpx)
+  🎬 HEVC/H.265 decoder/encoder (x265)
+  🎬 H.264 decoder/encoder (x264)
+
+
+
+
+
+If you want to build locally:
+
+1. Download Android NDK r21e
+2. Set ANDROID_NDK_HOME environment variable
+3. Run: ./build_ffmpeg_android.sh
+4. Output will be in: ./output/
+
+
+
+
+
+ First build takes 60-90 min, subsequent builds are faster (caching)
+ Check Actions tab to monitor build progress
+ Tag commits with v* to create releases automatically
+ Edit build_ffmpeg_android.sh to customize codecs
+ See DEPLOYMENT_GUIDE.md for troubleshooting
+
+
+
+Need help? Read DEPLOYMENT_GUIDE.md for detailed instructions!
+
