@@ -26,6 +26,7 @@ jobs:
           yasm \
           nasm \
           cmake \
+          meson \
           pkg-config \
           autoconf \
           automake \
